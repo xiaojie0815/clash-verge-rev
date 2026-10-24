@@ -8,13 +8,10 @@ use std::path::{Component, Path, PathBuf};
 use tokio::fs;
 use tokio::io::AsyncWriteExt as _;
 
-#[derive(Debug, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct IconInfo {
-    #[specta(type = std::string::String)]
     name: String,
-    #[specta(type = std::string::String)]
     previous_t: String,
-    #[specta(type = std::string::String)]
     current_t: String,
 }
 

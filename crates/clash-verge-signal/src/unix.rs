@@ -1,12 +1,12 @@
 use clash_verge_logging::{Type, logging};
 use tokio::signal::unix::{SignalKind, signal};
 
-use crate::{RUNTIME, SHUTDOWN_LATCH};
+use crate::{RUNTIME, SHUTDOWN_LATCH, ShutdownOutcome};
 
 pub fn register<F, Fut>(f: F)
 where
     F: Fn() -> Fut + Send + Sync + 'static,
-    Fut: Future<Output = ()> + Send + 'static,
+    Fut: Future<Output = ShutdownOutcome> + Send + 'static,
 {
     if let Some(Some(rt)) = RUNTIME.get() {
         rt.spawn(async move {
@@ -60,8 +60,7 @@ where
                 }
                 logging!(info, Type::SystemSignal, "Caught signal {}", signal_name);
 
-                f().await;
-                SHUTDOWN_LATCH.finish();
+                SHUTDOWN_LATCH.finish(f().await);
             }
         });
     } else {

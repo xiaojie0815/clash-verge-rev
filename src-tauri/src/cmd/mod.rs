@@ -4,7 +4,7 @@ use smartstring::alias::String;
 pub type CmdResult<T = ()> = Result<T, CommandFailure>;
 
 /// Structured command failure returned to the frontend.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct CommandFailure {
     /// Stable frontend identifier, when classified.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -101,6 +101,7 @@ pub mod media_unlock_checker;
 pub mod network;
 pub mod profile;
 pub mod proxy;
+pub mod proxy_chain;
 pub mod runtime;
 pub mod save_profile;
 pub mod service;
@@ -120,6 +121,7 @@ pub use media_unlock_checker::*;
 pub use network::*;
 pub use profile::*;
 pub use proxy::*;
+pub use proxy_chain::*;
 pub use runtime::*;
 pub use save_profile::*;
 pub use service::*;

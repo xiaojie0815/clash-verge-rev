@@ -305,7 +305,11 @@ function extractDisplayText(input: unknown): string | undefined {
   }
 }
 
-import type { CommandFailure_Serialize as CommandFailure } from './bindings'
+export interface CommandFailure {
+  code?: string
+  operation?: FailedOperation
+  detail: string
+}
 
 function isCommandFailure(input: unknown): input is CommandFailure {
   if (typeof input !== 'object' || input === null) return false
@@ -491,11 +495,11 @@ const baseShowNotice = (
 }
 
 function failureCode(input: unknown): string | undefined {
-  return isCommandFailure(input) ? input.code! : undefined
+  return isCommandFailure(input) ? input.code : undefined
 }
 
 function failureOperation(input: unknown): FailedOperation | undefined {
-  return isCommandFailure(input) ? input.operation! : undefined
+  return isCommandFailure(input) ? input.operation : undefined
 }
 
 /**

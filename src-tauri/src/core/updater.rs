@@ -34,7 +34,7 @@ impl SilentUpdater {
     }
 }
 
-#[derive(Serialize, Deserialize, specta::Type)]
+#[derive(Serialize, Deserialize)]
 struct UpdateCacheMeta {
     version: String,
     downloaded_at: String,
@@ -214,7 +214,7 @@ fn nsis_language_id(app_language: &str) -> &'static str {
 }
 
 /// Same wire shape as the updater plugin's JS `DownloadEvent`.
-#[derive(Clone, Serialize, specta::Type)]
+#[derive(Clone, Serialize)]
 #[serde(tag = "event", content = "data")]
 pub enum DownloadEvent {
     #[serde(rename_all = "camelCase")]

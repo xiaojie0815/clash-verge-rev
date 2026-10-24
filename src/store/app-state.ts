@@ -66,7 +66,6 @@ const withLoading = (
       next.delete(uid)
     }
   }
-  if (next.size === state.profileUpdates.loading.size) return state
   return {
     ...state,
     profileUpdates: { ...state.profileUpdates, loading: next },

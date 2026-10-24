@@ -246,6 +246,7 @@ impl Config {
         Self::runtime().await.edit_draft(|d| {
             *d = IRuntime {
                 config: Some(config),
+                proxy_chain: None,
                 dns_override: Some(dns_override),
                 exists_keys,
                 chain_logs: logs,

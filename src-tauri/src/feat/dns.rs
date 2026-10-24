@@ -15,14 +15,11 @@ use crate::{
     utils::dirs,
 };
 
-#[derive(Serialize, specta::Type)]
+#[derive(Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum DnsOverrideOutcome {
     Applied,
-    ConfirmationRequired {
-        #[specta(type = std::string::String)]
-        source: String,
-    },
+    ConfirmationRequired { source: String },
 }
 
 pub async fn set_dns_override(

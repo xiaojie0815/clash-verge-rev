@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
 
 env:
   HUSKY: 0
@@ -52,7 +51,7 @@ jobs:
       - uses: actions/setup-node@v7
         if: steps.check_frontend.outputs.frontend == 'true'
         with:
-          node-version: '24.22.1'
+          node-version: '24.21.0'
           cache: 'pnpm'
 
       - name: Restore pnpm cache
@@ -100,7 +99,14 @@ jobs:
         id: check_inputs
         uses: dorny/paths-filter@v4
         with:
-          filters: scripts/contract-inputs.json
+          filters: |
+            contract:
+              - 'src/services/contract.ts'
+              - 'scripts/gen-contract.mjs'
+              - 'src-tauri/src/core/notify/**'
+              - 'src-tauri/src/bin/**'
+              - 'src-tauri/src/lib.rs'
+              - '.github/workflows/frontend-check.yml'
 
       - name: Skip if contract inputs unchanged
         if: steps.check_inputs.outputs.contract != 'true'
@@ -138,7 +144,7 @@ jobs:
       - uses: actions/setup-node@v7
         if: steps.check_inputs.outputs.contract == 'true'
         with:
-          node-version: '24.22.1'
+          node-version: '24.21.0'
           cache: 'pnpm'
 
       - run: pnpm install --frozen-lockfile
@@ -153,6 +159,8 @@ jobs:
             touch "src-tauri/sidecar/${bin}-x86_64-unknown-linux-gnu"
           done
 
-      - name: Check generated contract without changing the checkout
+      - name: Regenerate contract and require empty diff
         if: steps.check_inputs.outputs.contract == 'true'
-        run: pnpm gen:contract --check
+        run: |
+          pnpm gen:contract
+          git diff --exit-code -- src/services/contract.ts

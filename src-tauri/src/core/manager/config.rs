@@ -164,6 +164,7 @@ impl CoreManager {
         Config::runtime().await.edit_draft(|d| {
             *d = IRuntime {
                 config: Some(clash_config.to_owned()),
+                proxy_chain: None,
                 dns_override: None,
                 exists_keys: HashSet::new(),
                 chain_logs: Default::default(),
@@ -308,7 +309,7 @@ impl CoreManager {
 
     pub(crate) async fn update_runtime_config<F>(&self, f: F) -> Result<ValidationOutcome>
     where
-        F: FnOnce(&mut IRuntime),
+        F: FnOnce(&mut IRuntime) -> Result<()>,
     {
         if !self.try_start_config_update() {
             logging!(debug, Type::Core, "Configuration update is already running");
@@ -320,7 +321,7 @@ impl CoreManager {
 
         let runtime = Config::runtime().await;
         let transaction = DraftTransaction::begin(vec![&runtime])?;
-        runtime.edit_draft(f);
+        runtime.edit_draft(f)?;
         self.validate_and_apply(transaction).await
     }
 

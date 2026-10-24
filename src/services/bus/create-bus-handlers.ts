@@ -72,7 +72,11 @@ export const createEventBus = (deps: BusHandlerDeps) => {
         'getRuleProviders',
       ]),
     'verge://refresh-verge-config': () =>
-      deps.revalidateKeys(['getVergeConfig', 'getSystemProxy', 'getAutoProxy']),
+      deps.revalidateKeys([
+        'getVergeConfig',
+        'getSystemProxy',
+        'getAutotemProxy',
+      ]),
     'verge://refresh-profiles': () => deps.revalidateKeys(['getProfiles']),
     'verge://refresh-proxy-config': handleRefreshProxyConfig,
     'verge://notice-message': (payload) => deps.handleNotice(payload),

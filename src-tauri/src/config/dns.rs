@@ -106,11 +106,10 @@ impl DnsOverrideState {
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize, Serialize, specta::Type)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct ProfileDnsSettings {
     pub enabled: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[specta(type = Option<std::string::String>)]
     pub confirmation: Option<String>,
 }
 

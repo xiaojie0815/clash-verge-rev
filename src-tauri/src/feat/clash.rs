@@ -4,7 +4,6 @@ use crate::{
     config::{Config, MixedPort},
     core::{CoreManager, handle, tray},
     feat::clean_async,
-    process::AsyncHandler,
     utils,
 };
 use bytes::BytesMut;
@@ -14,7 +13,7 @@ use smartstring::alias::String;
 use std::sync::{Arc, LazyLock};
 
 #[allow(clippy::expect_used)]
-static TLS_CONFIG: LazyLock<Arc<rustls::ClientConfig>> = LazyLock::new(|| {
+pub(super) static TLS_CONFIG: LazyLock<Arc<rustls::ClientConfig>> = LazyLock::new(|| {
     let root_store = rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     let config = rustls::ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
         .with_safe_default_protocol_versions()
@@ -78,20 +77,66 @@ pub async fn restart_app() {
     app_handle.restart();
 }
 
-fn after_change_clash_mode() {
-    AsyncHandler::spawn(move || async {
-        if let Err(err) = handle::Handle::mihomo().close_all_connections().await {
-            logging!(
-                error,
-                Type::Core,
-                "Failed to close all connections after changing clash mode: {err}"
-            );
-        }
-    });
+pub(crate) struct LiveChainSettings {
+    pub mode: std::string::String,
+    pub tun_enabled: Option<bool>,
+    pub mixed_port: Option<u16>,
 }
 
-/// Propagates mihomo PATCH failures so the frontend can roll back its optimistic mode.
+pub(crate) async fn live_chain_settings() -> anyhow::Result<LiveChainSettings> {
+    let parsed = match tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        handle::Handle::mihomo().get_base_config(),
+    )
+    .await
+    {
+        Ok(Ok(config)) => serde_json::to_value(config)?,
+        _ => {
+            // Older plugin models can reject otherwise valid /configs fields.
+            let info = Config::clash().await.data_arc().get_client_info();
+            let endpoint: std::net::SocketAddr = info.server.parse()?;
+            anyhow::ensure!(endpoint.ip().is_loopback(), "Local controller readback unavailable");
+            let client = reqwest::Client::builder()
+                .no_proxy()
+                .redirect(reqwest::redirect::Policy::none())
+                .timeout(std::time::Duration::from_secs(3))
+                .build()?;
+            let mut request = client.get(format!("http://{endpoint}/configs"));
+            if let Some(secret) = info.secret {
+                request = request.bearer_auth(secret.as_str());
+            }
+            request
+                .send()
+                .await?
+                .error_for_status()?
+                .json::<serde_json::Value>()
+                .await?
+        }
+    };
+    let mode = parsed
+        .get("mode")
+        .and_then(serde_json::Value::as_str)
+        .filter(|mode| matches!(*mode, "rule" | "global" | "direct"))
+        .ok_or_else(|| anyhow::anyhow!("Live mode is unavailable"))?
+        .to_owned();
+    Ok(LiveChainSettings {
+        mode,
+        tun_enabled: parsed.pointer("/tun/enable").and_then(serde_json::Value::as_bool),
+        mixed_port: parsed
+            .get("mixed-port")
+            .or_else(|| parsed.get("mixedPort"))
+            .or_else(|| parsed.get("mixed_port"))
+            .and_then(serde_json::Value::as_u64)
+            .and_then(|port| u16::try_from(port).ok())
+            .filter(|port| *port != 0),
+    })
+}
+
 pub async fn change_clash_mode(mode: String) -> Result<(), String> {
+    let _operation = crate::config::runtime::CHAIN_OPERATION.lock().await;
+    if !matches!(mode.as_str(), "rule" | "global" | "direct") {
+        return Err("Invalid proxy mode".into());
+    }
     let mut mapping = Mapping::new();
     mapping.insert(Value::from("mode"), Value::from(mode.as_str()));
     let json_value = serde_json::json!({
@@ -102,21 +147,30 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
         return Err(err.to_string().into());
     }
 
+    let live = live_chain_settings()
+        .await
+        .map_err(|_| String::from("Mode PATCH returned, but live mode could not be read back"))?;
+    if live.mode != mode.as_str() {
+        return Err("The core did not confirm the requested proxy mode".into());
+    }
+
     let clash = Config::clash().await;
     clash.edit_draft(|d| d.patch_config(&mapping));
     clash.apply();
 
     let clash_data = clash.data_arc();
-    if clash_data.save_config().await.is_ok() {
-        announce(Refresh::Clash);
-        tray::Tray::global().update_menu_and_icon().await;
-    }
+    let saved = clash_data.save_config().await;
+    announce(Refresh::Clash);
+    tray::Tray::global().update_menu_and_icon().await;
 
     let is_auto_close_connection = Config::verge().await.data_arc().auto_close_connection.unwrap_or(false);
     if is_auto_close_connection {
-        after_change_clash_mode();
+        handle::Handle::mihomo()
+            .close_all_connections()
+            .await
+            .map_err(|_| String::from("Mode applied, but old connections could not be closed"))?;
     }
-
+    saved.map_err(|_| String::from("Mode applied, but the saved preference could not be updated"))?;
     Ok(())
 }
 

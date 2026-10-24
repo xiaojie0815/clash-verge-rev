@@ -12,33 +12,30 @@ use crate::{
     },
 };
 use clash_verge_logging::{Type, logging, logging_error};
+use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use tokio::fs;
 
 #[tauri::command]
-#[specta::specta]
 pub async fn copy_clash_env() -> CmdResult {
-    feat::copy_clash_env().await.stringify_err()
+    feat::copy_clash_env().await;
+    Ok(())
 }
 
 #[tauri::command]
-#[specta::specta]
 pub async fn get_clash_info() -> CmdResult<ClashInfo> {
     Ok(Config::clash().await.data_arc().get_client_info())
 }
 
 #[tauri::command]
-#[specta::specta]
-pub async fn patch_clash_config(payload: crate::ipc::YamlMapping) -> CmdResult {
-    feat::patch_clash(&payload.0)
+pub async fn patch_clash_config(payload: Mapping) -> CmdResult {
+    feat::patch_clash(&payload)
         .await
         .map_err(|error| proxy_aware_coded_error(&error, "CLASH_CONFIG_UPDATE_FAILED"))
 }
 
 #[tauri::command]
-#[specta::specta]
-pub async fn patch_clash_mode(payload: std::string::String) -> CmdResult {
-    let payload: String = payload.into();
+pub async fn patch_clash_mode(payload: String) -> CmdResult {
     feat::change_clash_mode(payload)
         .await
         .with_error_code("CLASH_MODE_UPDATE_FAILED")
@@ -46,15 +43,12 @@ pub async fn patch_clash_mode(payload: std::string::String) -> CmdResult {
 
 /// Reads the saved mode without depending on strict mihomo `/configs` deserialization.
 #[tauri::command]
-#[specta::specta]
-pub async fn get_clash_mode() -> CmdResult<Option<std::string::String>> {
-    Ok(Config::clash().await.data_arc().get_mode())
+pub async fn get_clash_mode() -> CmdResult<Option<String>> {
+    Ok(Config::clash().await.data_arc().get_mode().map(Into::into))
 }
 
 #[tauri::command]
-#[specta::specta]
-pub async fn change_clash_core(clash_core: std::string::String) -> CmdResult<Option<CommandFailure>> {
-    let clash_core: String = clash_core.into();
+pub async fn change_clash_core(clash_core: String) -> CmdResult<Option<CommandFailure>> {
     logging!(info, Type::Config, "changing core to {clash_core}");
 
     match CoreManager::global().change_core(&clash_core).await {
@@ -86,7 +80,6 @@ pub async fn change_clash_core(clash_core: std::string::String) -> CmdResult<Opt
 }
 
 #[tauri::command]
-#[specta::specta]
 pub async fn restart_core() -> CmdResult {
     logging_error!(Type::Core, profiles_save_file_safe().await);
     let result = CoreManager::global()
@@ -101,7 +94,6 @@ pub async fn restart_core() -> CmdResult {
 
 /// Replaces the managed core binary atomically instead of letting mihomo overwrite itself.
 #[tauri::command]
-#[specta::specta]
 pub async fn upgrade_clash_core(force: bool) -> CmdResult<feat::CoreUpgradeReport> {
     let report = feat::upgrade_core(force).await.with_error_code("CORE_UPGRADE_FAILED")?;
     if report.upgraded {
@@ -111,9 +103,7 @@ pub async fn upgrade_clash_core(force: bool) -> CmdResult<feat::CoreUpgradeRepor
 }
 
 #[tauri::command]
-#[specta::specta]
-pub async fn test_delay(url: std::string::String) -> CmdResult<u32> {
-    let url: String = url.into();
+pub async fn test_delay(url: String) -> CmdResult<u32> {
     let result = match feat::test_delay(url).await {
         Ok(delay) => delay,
         Err(e) => {
@@ -125,14 +115,13 @@ pub async fn test_delay(url: std::string::String) -> CmdResult<u32> {
 }
 
 #[tauri::command]
-#[specta::specta]
-pub async fn save_dns_config(dns_config: crate::ipc::YamlMapping) -> CmdResult {
+pub async fn save_dns_config(dns_config: Mapping) -> CmdResult {
     use crate::utils::dirs;
     use tokio::fs;
 
     let dns_path = dirs::app_home_dir().stringify_err()?.join(constants::files::DNS_CONFIG);
 
-    let yaml_str = yaml_emitter::to_mihomo_config_string(&dns_config.0).stringify_err()?;
+    let yaml_str = yaml_emitter::to_mihomo_config_string(&dns_config).stringify_err()?;
     fs::write(&dns_path, yaml_str).await.stringify_err()?;
     logging!(info, Type::Config, "DNS config saved to {dns_path:?}");
 
@@ -140,27 +129,22 @@ pub async fn save_dns_config(dns_config: crate::ipc::YamlMapping) -> CmdResult {
 }
 
 #[tauri::command]
-#[specta::specta]
 pub fn take_dns_override_notice() -> bool {
     crate::config::dns::take_dns_override_notice()
 }
 
 #[tauri::command]
-#[specta::specta]
 pub async fn set_dns_override(
-    profile_uid: std::string::String,
+    profile_uid: String,
     enabled: bool,
-    confirmation: Option<std::string::String>,
+    confirmation: Option<String>,
 ) -> CmdResult<feat::DnsOverrideOutcome> {
-    let profile_uid: String = profile_uid.into();
-    let confirmation = confirmation.map(String::from);
     feat::set_dns_override(profile_uid, enabled, confirmation)
         .await
         .map_err(|error| proxy_aware_coded_error(&error, "DNS_OVERRIDE_UPDATE_FAILED"))
 }
 
 #[tauri::command]
-#[specta::specta]
 pub async fn apply_dns_config(apply: bool) -> CmdResult {
     if apply {
         let dns_path = dirs::app_home_dir().stringify_err()?.join(constants::files::DNS_CONFIG);
@@ -179,7 +163,7 @@ pub async fn apply_dns_config(apply: bool) -> CmdResult {
             );
         })?;
 
-        serde_yaml_ng::from_str::<serde_yaml_ng::Mapping>(&dns_yaml).stringify_err_log(|e| {
+        let patch_config = serde_yaml_ng::from_str::<serde_yaml_ng::Mapping>(&dns_yaml).stringify_err_log(|e| {
             logging!(
                 error,
                 Type::Config,
@@ -187,6 +171,13 @@ pub async fn apply_dns_config(apply: bool) -> CmdResult {
                 dns_path.display()
             );
         })?;
+
+        let mut patch = serde_yaml_ng::Mapping::new();
+        patch.insert("dns".into(), patch_config.into());
+
+        Config::runtime().await.edit_draft(|d| {
+            d.patch_config(&patch);
+        });
 
         CoreManager::global().update_config_checked().await.map_err(|error| {
             logging!(error, Type::Config, "failed to apply the config with DNS: {error:#}");
@@ -211,22 +202,20 @@ pub async fn apply_dns_config(apply: bool) -> CmdResult {
 }
 
 #[tauri::command]
-#[specta::specta]
-pub async fn get_dns_config_content() -> CmdResult<Option<std::string::String>> {
+pub async fn get_dns_config_content() -> CmdResult<Option<String>> {
     use crate::utils::dirs;
     use tokio::fs;
 
     let dns_path = dirs::app_home_dir().stringify_err()?.join(constants::files::DNS_CONFIG);
 
     match fs::read_to_string(&dns_path).await {
-        Ok(content) => Ok(Some(content)),
+        Ok(content) => Ok(Some(content.into())),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(CommandFailure::plain(error)),
     }
 }
 
 #[tauri::command]
-#[specta::specta]
 pub async fn validate_dns_config() -> CmdResult<ValidationOutcome> {
     let app_dir = dirs::app_home_dir().stringify_err()?;
     let dns_path = app_dir.join(constants::files::DNS_CONFIG);
@@ -243,7 +232,6 @@ pub async fn validate_dns_config() -> CmdResult<ValidationOutcome> {
 }
 
 #[tauri::command]
-#[specta::specta]
 pub async fn get_clash_logs() -> CmdResult<Vec<std::string::String>> {
     let logs = CoreManager::global().get_clash_logs().await.unwrap_or_default();
     Ok(logs)

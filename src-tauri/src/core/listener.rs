@@ -38,7 +38,7 @@ pub(crate) fn proxy_listener_keys() -> impl Iterator<Item = &'static str> {
     PROXY_LISTENERS.iter().map(|(key, _, _)| *key)
 }
 
-#[derive(Debug, Deserialize, specta::Type)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProxyPortSettings {
     pub mixed_port: u16,
@@ -48,27 +48,27 @@ pub struct ProxyPortSettings {
     pub tproxy: ToggleableProxyPort,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, specta::Type)]
+#[derive(Clone, Copy, Debug, Deserialize)]
 pub struct ToggleableProxyPort {
     pub enabled: bool,
     pub port: u16,
 }
 
-#[derive(Debug, Deserialize, specta::Type)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ListenerProbe {
     pub address: String,
     pub transports: Vec<ListenerTransport>,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Hash, Serialize, specta::Type)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ListenerTransport {
     Tcp,
     Udp,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "status", rename_all = "camelCase")]
 pub enum ListenerProbeOutcome {
     Available,
@@ -77,7 +77,7 @@ pub enum ListenerProbeOutcome {
     Indeterminate { message: String },
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "status", rename_all = "camelCase")]
 pub enum SaveProxyPortsOutcome {
     Saved,

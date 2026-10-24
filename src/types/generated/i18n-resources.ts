@@ -525,18 +525,76 @@ export interface TranslationResources {
           toggleChain: string
         }
         chain: {
-          confirmEnable: string
+          applied: string
+          apply: string
+          busy: string
           connectFailed: string
+          diagnostics: {
+            actualRequests: string
+            codes: {
+              AUTHENTICATION_FAILED: string
+              CHAIN_CORE_UNAVAILABLE: string
+              CHAIN_NOT_ACTIVE_IN_CURRENT_SCOPE: string
+              DIRECT_ROUTE_NOT_VERIFIED_WITH_TUN: string
+              DNS_FAILED: string
+              EXIT_NOT_VERIFIED: string
+              EXPECTED_EXIT_MISMATCH: string
+              HTTP_TARGET_REJECTED: string
+              PEER_CLOSED: string
+              TIMEOUT: string
+              TLS_FAILED: string
+            }
+            copy: string
+            exitMatched: string
+            exitMismatch: string
+            exitUnknown: string
+            expectedExit: string
+            expectedExitHint: string
+            explanation: string
+            export: string
+            failed: string
+            noRequests: string
+            noResponseObserved: string
+            notTested: string
+            preview: string
+            reachable: string
+            requestHint: string
+            responseObserved: string
+            run: string
+            running: string
+            stages: {
+              CHAIN_PREFIX_ACCESS: string
+              CONFIGURATION: string
+              DIRECT_NODE_TCP: string
+              DIRECT_SOCKS5_AUTHENTICATION: string
+              DIRECT_SOCKS5_NEGOTIATION: string
+              DIRECT_SOCKS5_TARGET_CONNECT: string
+              DIRECT_TARGET_HTTP: string
+              DIRECT_TARGET_TLS: string
+              EGRESS_QUERY: string
+              EGRESS_VERIFICATION: string
+              LOCAL_PROXY_TARGET_HTTP: string
+              NODE_DNS: string
+            }
+            stale: string
+            title: string
+          }
           disconnectFailed: string
           duplicateNode: string
           empty: string
           entryNode: string
           exitNode: string
           header: string
+          inactiveScope: string
           instruction: string
-          keepDisabled: string
           minimumNodes: string
           minimumNodesHint: string
+          nodeDelayHint: string
+          notApplied: string
+          pending: string
+          ruleScopeHint: string
+          scope: string
+          stateUnknown: string
           warning: string
         }
         empty: {

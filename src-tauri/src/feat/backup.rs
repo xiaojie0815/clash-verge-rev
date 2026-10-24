@@ -16,13 +16,10 @@ use smartstring::alias::String;
 use std::path::PathBuf;
 use tokio::fs;
 
-#[derive(Debug, Serialize, specta::Type)]
+#[derive(Debug, Serialize)]
 pub struct LocalBackupFile {
-    #[specta(type = std::string::String)]
     pub filename: String,
-    #[specta(type = std::string::String)]
     pub path: String,
-    #[specta(type = std::string::String)]
     pub last_modified: String,
     pub content_length: u64,
 }

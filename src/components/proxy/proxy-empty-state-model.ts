@@ -5,11 +5,11 @@ export type ProxyEmptyStateReason =
   | 'no-proxy-info'
 
 type ProfileSummary = {
-  current?: string | null
+  current?: string
   items?: Array<{
-    uid?: string | null
-    type?: string | null
-  }> | null
+    uid?: string
+    type?: string
+  }>
 }
 
 interface ProxyListStateInput {
@@ -20,7 +20,7 @@ interface ProxyListStateInput {
   isRunningModePending: boolean
 }
 
-const isSubscriptionProfile = (item: { type?: string | null }): boolean =>
+const isSubscriptionProfile = (item: { type?: string }): boolean =>
   item.type === 'remote' || item.type === 'local'
 
 /** Decides only pre-render states; the built list owns whether it has renderable content. */

@@ -1,5 +1,6 @@
 mod backup;
 mod clash;
+mod chain_diagnostics;
 mod config;
 mod core_upgrade;
 mod dns;
@@ -15,6 +16,7 @@ mod window;
 // Re-export all functions from modules
 pub use backup::*;
 pub use clash::*;
+pub use chain_diagnostics::*;
 pub use config::*;
 pub use core_upgrade::*;
 pub use dns::*;

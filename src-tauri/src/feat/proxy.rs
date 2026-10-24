@@ -11,7 +11,6 @@ use crate::{
         window_manager::WindowManager,
     },
 };
-use anyhow::Context as _;
 use clash_verge_logging::{Type, logging};
 use std::env;
 use tauri_plugin_clipboard_manager::ClipboardExt as _;
@@ -96,7 +95,7 @@ pub async fn toggle_tun_mode(not_save_file: Option<bool>) -> bool {
     }
 }
 
-pub async fn copy_clash_env() -> anyhow::Result<()> {
+pub async fn copy_clash_env() {
     let env_ip = env::var("CLASH_VERGE_REV_IP").ok();
     let verge_cfg = Config::verge().await.latest_arc();
     let ip = env_ip
@@ -134,11 +133,12 @@ pub async fn copy_clash_env() -> anyhow::Result<()> {
         }
         "fish" => format!("set -x http_proxy {http_proxy}; set -x https_proxy {http_proxy}"),
         _ => {
-            anyhow::bail!("Invalid environment variable format: {env_type}");
+            logging!(error, Type::ProxyMode, "copy_clash_env: Invalid env type! {env_type}");
+            return;
         }
     };
 
-    clipboard
-        .write_text(export_text)
-        .context("Failed to write proxy environment variables to clipboard")
+    if let Err(err) = clipboard.write_text(&export_text) {
+        logging!(error, Type::ProxyMode, "Failed to write to clipboard: {err}");
+    }
 }

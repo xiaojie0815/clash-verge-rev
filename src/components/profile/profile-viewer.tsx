@@ -115,13 +115,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
         }
 
         const name = form.name || `${form.type} file`
-        const item = {
-          type: form.type,
-          name,
-          desc: form.desc,
-          option,
-          ...(form.type === 'remote' ? { url: form.url } : {}),
-        }
+        const item = { ...form, name, option }
         const isRemote = form.type === 'remote'
         const isUpdate = openType === 'edit'
 
@@ -145,7 +139,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
                 t('profiles.modals.profileForm.errors.uidMissing'),
               )
             }
-            await mutate(() => patchProfile(form.uid!, item), {
+            await mutate(() => patchProfile(form.uid, item), {
               id: 'patch-profile',
               errorNotice: false,
             })
@@ -163,7 +157,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
                   t('profiles.modals.profileForm.errors.uidMissing'),
                 )
               }
-              await mutate(() => patchProfile(form.uid!, item), {
+              await mutate(() => patchProfile(form.uid, item), {
                 id: 'patch-profile',
                 errorNotice: false,
               })
@@ -196,13 +190,13 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
                   t('profiles.modals.profileForm.errors.uidMissing'),
                 )
               }
-              await mutate(() => patchProfile(form.uid!, retryItem), {
+              await mutate(() => patchProfile(form.uid, retryItem), {
                 id: 'patch-profile',
                 errorNotice: false,
               })
 
               await mutate(
-                () => patchProfile(form.uid!, { option: originalOptions }),
+                () => patchProfile(form.uid, { option: originalOptions }),
                 {
                   id: 'patch-profile',
                   errorNotice: false,
@@ -419,7 +413,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
                 <InputLabel>
                   {t('profiles.modals.profileForm.fields.useSystemProxy')}
                 </InputLabel>
-                <Switch checked={field.value!} {...field} color="primary" />
+                <Switch checked={field.value} {...field} color="primary" />
               </StyledBox>
             )}
           />
@@ -432,7 +426,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
                 <InputLabel>
                   {t('profiles.modals.profileForm.fields.useClashProxy')}
                 </InputLabel>
-                <Switch checked={field.value!} {...field} color="primary" />
+                <Switch checked={field.value} {...field} color="primary" />
               </StyledBox>
             )}
           />
@@ -445,7 +439,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
                 <InputLabel>
                   {t('profiles.modals.profileForm.fields.acceptInvalidCerts')}
                 </InputLabel>
-                <Switch checked={field.value!} {...field} color="primary" />
+                <Switch checked={field.value} {...field} color="primary" />
               </StyledBox>
             )}
           />

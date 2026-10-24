@@ -23,8 +23,6 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { useProxiesData } from '@/providers/app-data-context'
-import { updateProxyChainConfigInRuntime } from '@/services/cmds'
-import { mutate } from '@/services/mutate'
 import {
   isInteractableMember,
   type ProxyGroupView,
@@ -77,7 +75,6 @@ interface GroupSelectMenuProps {
 interface ProxyGroupsChainProps {
   mode: string
   chainConfigData?: string | null
-  onExitChainMode: () => void
   availableGroups: any[]
   activeSelectedGroup: string | null
   showScrollTop: boolean
@@ -306,7 +303,6 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
   const {
     mode,
     chainConfigData,
-    onExitChainMode,
     availableGroups,
     activeSelectedGroup,
     showScrollTop,
@@ -364,11 +360,12 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
   useEffect(() => {
     if (currentProxyChain.length > 0) {
       const persistedChain = currentProxyChain.map(
-        ({ id, name, type, delay }) => ({
+        ({ id, name, type, delay, source }) => ({
           id,
           name,
           type,
           delay,
+          source,
         }),
       )
       localStorage.setItem('proxy-chain-items', JSON.stringify(persistedChain))
@@ -402,24 +399,7 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
     setRuleMenuAnchor(null)
   }
 
-  const handleGroupSelect = async (groupName: string) => {
-    if (mode === 'rule') {
-      try {
-        const result = await mutate(
-          () => updateProxyChainConfigInRuntime(null),
-          {
-            id: 'update-proxy-chain-runtime',
-          },
-        )
-        if (!result.ok) return
-      } catch {
-        return
-      }
-      localStorage.removeItem('proxy-chain-group')
-      localStorage.removeItem('proxy-chain-exit-node')
-      localStorage.removeItem('proxy-chain-items')
-      setProxyChain([])
-    }
+  const handleGroupSelect = (groupName: string) => {
     onGroupSelect(groupName)
     handleGroupMenuClose()
   }
@@ -523,7 +503,6 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
             chainConfigData={chainConfigData}
             mode={mode}
             selectedGroup={activeSelectedGroup}
-            onExitChainMode={onExitChainMode}
           />
         </Box>
       </Box>

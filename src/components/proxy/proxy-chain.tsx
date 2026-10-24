@@ -25,7 +25,6 @@ import {
   keyframes,
   useTheme,
 } from '@mui/material'
-import * as yaml from 'js-yaml'
 import {
   type Ref,
   useCallback,
@@ -35,38 +34,32 @@ import {
   useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  closeAllConnections,
-  selectNodeForGroup,
-} from 'tauri-plugin-mihomo-api'
 
 import { TooltipIcon } from '@/components/base'
 import { useRuntimeConfig } from '@/hooks/use-clash'
-import { useRecordSelection } from '@/hooks/use-record-selection'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
-import { updateProxyChainConfigInRuntime } from '@/services/cmds'
-import { mutate } from '@/services/mutate'
+import { getProxyChainState } from '@/services/cmds'
+import { showNotice } from '@/services/notice-service'
+import { applyProxyChain } from '@/services/proxy-chain'
+import { useQuery } from '@/services/query-client'
 import {
   selectGlobalChainNodes,
   selectRuleChainMembers,
 } from '@/types/proxy-view'
-import { debugLog } from '@/utils/debug'
 
-import { rebindProxyChainItems, type ProxyChainItem } from './proxy-chain-model'
+import { ProxyChainDiagnostics } from './proxy-chain-diagnostics'
+import {
+  chainConfigurationApplied,
+  chainDraftMatches,
+  rebindProxyChainItems,
+  type ProxyChainItem,
+} from './proxy-chain-model'
 
 const chainPointerSensor = PointerSensor.configure({
   activationConstraints: () => undefined,
 })
 
 type RuntimeConfigWithProxySequence = IConfigData & { proxies?: unknown }
-
-interface ParsedChainConfig {
-  proxies?: Array<{
-    name: string
-    type: string
-    [key: string]: any
-  }>
-}
 
 interface ProxyChainProps {
   proxyChain: ProxyChainItem[]
@@ -75,7 +68,6 @@ interface ProxyChainProps {
   onMarkUnsavedChanges?: () => void
   mode?: string
   selectedGroup?: string | null
-  onExitChainMode: () => void
 }
 
 interface ProxyChainItemProps {
@@ -97,21 +89,6 @@ const arrowFadeIn = keyframes`
     transform: translateY(0);
   }
 `
-
-const toChainItems = (
-  parsedConfig: ParsedChainConfig | null | undefined,
-): ProxyChainItem[] => {
-  const timestamp = Date.now()
-
-  return (
-    parsedConfig?.proxies?.map((proxy, index) => ({
-      id: `${proxy.name}_${timestamp}_${index}`,
-      name: proxy.name,
-      type: proxy.type,
-      delay: undefined,
-    })) || []
-  )
-}
 
 interface ChainCardProps {
   proxy: ProxyChainItem
@@ -225,6 +202,7 @@ const ChainCard = ({
 
       {proxy.delay !== undefined && (
         <Chip
+          title={t('proxies.page.chain.nodeDelayHint')}
           label={
             proxy.delay > 0 ? `${proxy.delay}ms` : t('shared.labels.timeout')
           }
@@ -328,20 +306,51 @@ const SortableProxyChainItem = ({
 export const ProxyChain = ({
   proxyChain,
   onUpdateChain,
-  chainConfigData,
   onMarkUnsavedChanges,
   mode,
   selectedGroup,
-  onExitChainMode,
 }: ProxyChainProps) => {
   const theme = useTheme()
   const { t } = useTranslation()
   const chainWarning = t('proxies.page.chain.warning')
   const { proxyView } = useProxiesData()
   const { refreshProxy } = useAppRefreshers()
-  const { data: runtimeConfig } = useRuntimeConfig(true)
+  const { data: runtimeConfig, refetch: refreshRuntime } =
+    useRuntimeConfig(true)
   const [isConnecting, setIsConnecting] = useState(false)
-  const recordSelection = useRecordSelection()
+  const [operationWarning, setOperationWarning] = useState('')
+  const {
+    data: chainState,
+    error: stateError,
+    refetch: refreshChainState,
+  } = useQuery({
+    queryKey: ['getProxyChainState'],
+    queryFn: getProxyChainState,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  })
+  const targetGroup =
+    mode === 'global'
+      ? 'GLOBAL'
+      : mode === 'rule'
+        ? (selectedGroup ?? null)
+        : null
+  const draftMatches = chainDraftMatches(proxyChain, targetGroup, chainState)
+  const isApplied = chainConfigurationApplied(chainState)
+  const hasAppliedChain = (chainState?.nodes.length ?? 0) >= 2
+  const hydratedRef = useRef(false)
+  useEffect(() => {
+    if (!chainState || hydratedRef.current) return
+    hydratedRef.current = true
+    if (proxyChain.length === 0 && chainState.nodes.length > 0) {
+      onUpdateChain(
+        chainState.nodes.map((name, index) => ({
+          id: `restored-${index}-${name}`,
+          name,
+        })),
+      )
+    }
+  }, [chainState, proxyChain.length, onUpdateChain])
   const markUnsavedChanges = useCallback(() => {
     onMarkUnsavedChanges?.()
   }, [onMarkUnsavedChanges])
@@ -372,32 +381,6 @@ export const ProxyChain = ({
     [candidates, proxyChain, proxyView],
   )
 
-  const isConnected = useMemo(() => {
-    if (!proxyView || currentProxyChain.length === 0) {
-      return false
-    }
-
-    const lastNode = currentProxyChain[currentProxyChain.length - 1]
-    if (localStorage.getItem('proxy-chain-exit-node') === lastNode.name) {
-      return true
-    }
-    if (currentProxyChain.length < 2) return false
-
-    if (mode === 'global') {
-      return proxyView.global?.now === lastNode.name
-    }
-
-    if (!selectedGroup) {
-      return false
-    }
-
-    const proxyChainGroup = proxyView.groups.find(
-      (group) => group.name === selectedGroup,
-    )
-
-    return proxyChainGroup?.now === lastNode.name
-  }, [proxyView, currentProxyChain, mode, selectedGroup])
-
   // 监听链的变化，但排除从配置加载的情况
   const chainLengthRef = useRef(currentProxyChain.length)
   useEffect(() => {
@@ -413,6 +396,7 @@ export const ProxyChain = ({
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
+      if (isConnecting) return
       const { operation, canceled } = event
       const { source, target } = operation
       if (canceled || !target || !isSortable(source)) return
@@ -431,171 +415,81 @@ export const ProxyChain = ({
       onUpdateChain(arrayMove(currentProxyChain, oldIndex, newIndex))
       markUnsavedChanges()
     },
-    [currentProxyChain, onUpdateChain, markUnsavedChanges],
+    [currentProxyChain, onUpdateChain, markUnsavedChanges, isConnecting],
   )
 
   const handleRemoveProxy = useCallback(
     (id: string) => {
+      if (isConnecting) return
       const newChain = currentProxyChain.filter((item) => item.id !== id)
       onUpdateChain(newChain)
       markUnsavedChanges()
     },
-    [currentProxyChain, onUpdateChain, markUnsavedChanges],
+    [currentProxyChain, onUpdateChain, markUnsavedChanges, isConnecting],
   )
 
-  const handleConnect = useCallback(async () => {
-    if (isConnected) {
-      setIsConnecting(true)
-      try {
-        const result = await mutate(
-          () => updateProxyChainConfigInRuntime(null),
-          {
-            id: 'update-proxy-chain-runtime',
-            errorNotice: false,
-          },
-        )
-        if (!result.ok) return
+  const refreshState = useCallback(async () => {
+    await Promise.allSettled([
+      refreshProxy(),
+      refreshChainState(),
+      refreshRuntime(),
+    ])
+  }, [refreshProxy, refreshChainState, refreshRuntime])
 
-        const targetGroup =
-          mode === 'global'
-            ? 'GLOBAL'
-            : selectedGroup || localStorage.getItem('proxy-chain-group')
-
-        if (targetGroup) {
-          try {
-            await mutate(() => selectNodeForGroup(targetGroup, 'DIRECT'), {
-              id: `select-proxy-node:${targetGroup}`,
-              errorNotice: false,
-            })
-            await recordSelection(targetGroup, 'DIRECT')
-          } catch {
-            if (currentProxyChain.length >= 1) {
-              try {
-                await mutate(
-                  () =>
-                    selectNodeForGroup(targetGroup, currentProxyChain[0].name),
-                  {
-                    id: `select-proxy-node:${targetGroup}`,
-                    errorNotice: false,
-                  },
-                )
-                await recordSelection(targetGroup, currentProxyChain[0].name)
-              } catch {
-                // ignore
-              }
-            }
-          }
-        }
-
-        localStorage.removeItem('proxy-chain-group')
-        localStorage.removeItem('proxy-chain-exit-node')
-        localStorage.removeItem('proxy-chain-items')
-
-        await mutate(() => closeAllConnections(), {
-          id: 'close-all-connections',
-          errorNotice: false,
-        })
-        await refreshProxy()
-
-        onUpdateChain([])
-      } catch (error) {
-        console.error('Failed to disconnect from proxy chain:', error)
-        alert(t('proxies.page.chain.disconnectFailed'))
-      } finally {
-        setIsConnecting(false)
-      }
-      return
-    }
-
-    if (mode === 'global' && proxyView?.global === null) {
-      alert(t('proxies.page.chain.connectFailed'))
-      return
-    }
-
+  const handleApply = useCallback(async () => {
     if (
+      !targetGroup ||
       currentProxyChain.length < 2 ||
-      currentProxyChain.some(({ recordId }) => !recordId)
-    ) {
-      alert(t('proxies.page.chain.minimumNodes'))
+      currentProxyChain.some((node) => !node.recordId)
+    )
       return
-    }
-
     setIsConnecting(true)
+    setOperationWarning('')
     try {
-      // 第一步：保存链式代理配置
-      const chainProxies = currentProxyChain.map((node) => node.name)
-      debugLog('Saving chain config:', chainProxies)
-      const result = await mutate(
-        () => updateProxyChainConfigInRuntime(chainProxies),
-        {
-          id: 'update-proxy-chain-runtime',
-          errorNotice: false,
-        },
+      const result = await applyProxyChain(
+        targetGroup,
+        currentProxyChain.map((node) => node.name),
       )
-      if (!result.ok) return
-      debugLog('Chain configuration saved successfully')
-
-      // 第二步：连接到代理链的最后一个节点
-      const lastNode = currentProxyChain[currentProxyChain.length - 1]
-      debugLog(`Connecting to proxy chain, last node: ${lastNode.name}`)
-
-      // 根据模式确定使用的代理组名称
-      if (mode !== 'global' && !selectedGroup) {
-        throw new Error('规则模式下必须选择代理组')
+      if (result.ok) {
+        localStorage.setItem('proxy-chain-group', targetGroup)
+        localStorage.setItem(
+          'proxy-chain-exit-node',
+          currentProxyChain.at(-1)!.name,
+        )
+        setOperationWarning(result.value.warnings.join(', '))
       }
-
-      const targetGroup = mode === 'global' ? 'GLOBAL' : selectedGroup
-
-      await mutate(
-        () => selectNodeForGroup(targetGroup || 'GLOBAL', lastNode.name),
-        {
-          id: `select-proxy-node:${targetGroup || 'GLOBAL'}`,
-          errorNotice: false,
-        },
-      )
-      // The chain moves the group like any other selection, so the profile has to learn about
-      // it: what the profile holds is what gets re-applied the next time the core starts.
-      await recordSelection(targetGroup || 'GLOBAL', lastNode.name)
-      localStorage.setItem('proxy-chain-group', targetGroup || 'GLOBAL')
-      localStorage.setItem('proxy-chain-exit-node', lastNode.name)
-
-      // 刷新代理信息以更新连接状态
-      await refreshProxy()
-      debugLog('Successfully connected to proxy chain')
     } catch (error) {
-      console.error('Failed to connect to proxy chain:', error)
-      alert(t('proxies.page.chain.connectFailed'))
+      showNotice.error(error)
     } finally {
+      await refreshState()
       setIsConnecting(false)
     }
-  }, [
-    currentProxyChain,
-    isConnected,
-    t,
-    refreshProxy,
-    mode,
-    proxyView,
-    selectedGroup,
-    onUpdateChain,
-    recordSelection,
-  ])
+  }, [currentProxyChain, targetGroup, refreshState])
 
-  // 处理链式代理配置数据
-  useEffect(() => {
-    if (chainConfigData) {
+  const handleDisconnect = useCallback(
+    async (clear = false) => {
+      setIsConnecting(true)
+      setOperationWarning('')
       try {
-        // JSON is valid YAML, so one parser covers both persisted formats.
-        const parsedConfig = yaml.load(chainConfigData) as ParsedChainConfig
-        const chainItems = toChainItems(parsedConfig)
-
-        if (chainItems.length > 0) {
-          onUpdateChain(chainItems)
+        const result = await applyProxyChain(null, null)
+        if (result.ok) {
+          localStorage.removeItem('proxy-chain-group')
+          localStorage.removeItem('proxy-chain-exit-node')
+          setOperationWarning(result.value.warnings.join(', '))
+          if (clear) {
+            localStorage.removeItem('proxy-chain-items')
+            onUpdateChain([])
+          }
         }
       } catch (error) {
-        console.error('Failed to process chain config data:', error)
+        showNotice.error(error)
+      } finally {
+        await refreshState()
+        setIsConnecting(false)
       }
-    }
-  }, [chainConfigData, onUpdateChain])
+    },
+    [onUpdateChain, refreshState],
+  )
 
   return (
     <Paper
@@ -628,17 +522,8 @@ export const ProxyChain = ({
           {currentProxyChain.length > 0 && (
             <IconButton
               size="small"
-              onClick={() => {
-                void mutate(() => updateProxyChainConfigInRuntime(null), {
-                  id: 'update-proxy-chain-runtime',
-                  onFulfilled: () => {
-                    localStorage.removeItem('proxy-chain-group')
-                    localStorage.removeItem('proxy-chain-exit-node')
-                    localStorage.removeItem('proxy-chain-items')
-                    onUpdateChain([])
-                  },
-                }).catch(() => {})
-              }}
+              onClick={() => handleDisconnect(true)}
+              disabled={isConnecting}
               sx={{
                 color: theme.palette.error.main,
                 '&:hover': {
@@ -650,40 +535,84 @@ export const ProxyChain = ({
               <DeleteIcon fontSize="small" />
             </IconButton>
           )}
+          {hasAppliedChain && (
+            <Button
+              size="small"
+              color="error"
+              disabled={isConnecting}
+              startIcon={<LinkOff />}
+              onClick={() => handleDisconnect()}
+            >
+              {t('proxies.page.actions.disconnect')}
+            </Button>
+          )}
           <Button
             size="small"
             variant="contained"
-            startIcon={isConnected ? <LinkOff /> : <Link />}
-            onClick={handleConnect}
+            startIcon={<Link />}
+            onClick={handleApply}
             disabled={
               isConnecting ||
-              (!isConnected &&
-                (currentProxyChain.length < 2 ||
-                  currentProxyChain.some(
-                    ({ recordId }) => recordId === undefined,
-                  ) ||
-                  (mode === 'global' && proxyView?.global === null) ||
-                  (mode !== 'global' && !selectedGroup)))
-            }
-            color={isConnected ? 'error' : 'success'}
-            sx={{
-              minWidth: 90,
-            }}
-            title={
-              !isConnected && currentProxyChain.length < 2
-                ? t('proxies.page.chain.minimumNodes')
-                : undefined
+              !targetGroup ||
+              currentProxyChain.length < 2 ||
+              currentProxyChain.length > 8 ||
+              currentProxyChain.some((node) => node.recordId === undefined) ||
+              (draftMatches && isApplied && chainState?.scopeActive)
             }
           >
-            {isConnecting
-              ? t('proxies.page.actions.connecting')
-              : isConnected
-                ? t('proxies.page.actions.disconnect')
-                : t('proxies.page.actions.connect')}
+            {t(
+              isConnecting
+                ? 'proxies.page.chain.busy'
+                : 'proxies.page.chain.apply',
+            )}
           </Button>
         </Box>
       </Box>
 
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
+        <Chip
+          size="small"
+          color={stateError ? 'error' : isApplied ? 'success' : 'default'}
+          label={t(
+            stateError
+              ? 'proxies.page.chain.stateUnknown'
+              : isApplied
+                ? 'proxies.page.chain.applied'
+                : 'proxies.page.chain.notApplied',
+          )}
+        />
+        {currentProxyChain.length > 0 && !draftMatches && (
+          <Chip
+            size="small"
+            color="warning"
+            label={t('proxies.page.chain.pending')}
+          />
+        )}
+        {hasAppliedChain && !chainState?.scopeActive && (
+          <Chip
+            size="small"
+            color="warning"
+            label={t('proxies.page.chain.inactiveScope')}
+          />
+        )}
+      </Box>
+      <Typography variant="caption" sx={{ mb: 1, overflowWrap: 'anywhere' }}>
+        {t('proxies.page.chain.scope', {
+          group: chainState?.group ?? '—',
+          selected: chainState?.selected ?? '—',
+          mode: chainState?.mode ?? '—',
+        })}
+      </Typography>
+      {chainState?.group && chainState.group !== 'GLOBAL' && (
+        <Alert severity="info" sx={{ mb: 1 }}>
+          {t('proxies.page.chain.ruleScopeHint')}
+        </Alert>
+      )}
+      {operationWarning && (
+        <Alert severity="warning" sx={{ mb: 1 }}>
+          {operationWarning}
+        </Alert>
+      )}
       <Alert
         severity={currentProxyChain.length === 1 ? 'warning' : 'info'}
         sx={{ mb: 2 }}
@@ -698,18 +627,13 @@ export const ProxyChain = ({
           <Box
             sx={{
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 2,
               height: '100%',
               color: theme.palette.text.secondary,
             }}
           >
             <Typography>{t('proxies.page.chain.empty')}</Typography>
-            <Button size="small" variant="outlined" onClick={onExitChainMode}>
-              {t('shared.actions.close')}
-            </Button>
           </Box>
         ) : (
           <DragDropProvider
@@ -734,6 +658,15 @@ export const ProxyChain = ({
             </Box>
           </DragDropProvider>
         )}
+        <ProxyChainDiagnostics
+          state={chainState}
+          draftKey={JSON.stringify([
+            targetGroup,
+            currentProxyChain.map((node) => node.name),
+          ])}
+          busy={isConnecting}
+          onBusy={setIsConnecting}
+        />
       </Box>
     </Paper>
   )
