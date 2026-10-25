@@ -36,31 +36,45 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  select-targets:
+    name: Select requested platforms
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      matrix: ${{ steps.targets.outputs.matrix }}
+    steps:
+      - id: targets
+        env:
+          SELECT_WINDOWS: ${{ github.event.inputs.run_windows }}
+          SELECT_MACOS: ${{ github.event.inputs.run_macos_aarch64 }}
+          SELECT_WINDOWS_ARM64: ${{ github.event.inputs.run_windows_arm64 }}
+          SELECT_LINUX: ${{ github.event.inputs.run_linux_amd64 }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          targets = [
+              ('SELECT_WINDOWS', 'windows-latest', 'x86_64-pc-windows-msvc', 'nsis', 'windows', 'run_windows'),
+              ('SELECT_MACOS', 'macos-latest', 'aarch64-apple-darwin', 'dmg', 'macos-aarch64', 'run_macos_aarch64'),
+              ('SELECT_WINDOWS_ARM64', 'windows-latest', 'aarch64-pc-windows-msvc', 'nsis', 'windows-arm64', 'run_windows_arm64'),
+              ('SELECT_LINUX', 'ubuntu-22.04', 'x86_64-unknown-linux-gnu', 'deb', 'linux-amd64', 'run_linux_amd64'),
+          ]
+          selected = [dict(os=runner, target=target, bundle=bundle, id=name, input=key)
+                      for flag, runner, target, bundle, name, key in targets
+                      if os.environ.get(flag, '').lower() == 'true']
+          if not selected:
+              raise SystemExit('Select at least one build platform.')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write('matrix=' + json.dumps({'include': selected}) + '\n')
+          PY
+
   dev:
+    name: Build ${{ matrix.id }}
+    needs: select-targets
+    if: needs.select-targets.result == 'success'
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            bundle: nsis
-            id: windows
-            input: run_windows
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            bundle: dmg
-            id: macos-aarch64
-            input: run_macos_aarch64
-          - os: windows-latest
-            target: aarch64-pc-windows-msvc
-            bundle: nsis
-            id: windows-arm64
-            input: run_windows_arm64
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            bundle: deb
-            id: linux-amd64
-            input: run_linux_amd64
+      matrix: ${{ fromJson(needs.select-targets.outputs.matrix) }}
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -77,6 +91,7 @@ jobs:
         uses: dtolnay/rust-toolchain@1.99.0
 
       - name: Rust Cache
+        if: github.event.inputs[matrix.input] == 'true'
         uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/dev' }}
@@ -105,15 +120,6 @@ jobs:
         with:
           node-version: '24.21.0'
           cache: 'pnpm'
-
-      - name: Pnpm Cache
-        uses: actions/cache@v6
-        with:
-          path: ~/.pnpm-store
-          key: 'pnpm-shared-stable-${{ matrix.os }}-${{ matrix.target }}'
-          restore-keys: |
-            pnpm-shared-stable-${{ matrix.os }}-${{ matrix.target }}
-          lookup-only: true
 
       - name: Pnpm install and check
         if: github.event.inputs[matrix.input] == 'true'
