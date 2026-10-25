@@ -712,5 +712,27 @@
       "installing": "安装服务中...",
       "uninstalling": "卸载服务中..."
     }
+  },
+  "diagnosticMcp": {
+    "title": "诊断连接（MCP）",
+    "privacy": "只提供脱敏诊断：节点用代号，IP 部分隐藏；账号、密码、UUID、订阅链接、控制密钥和原始日志不会返回。",
+    "scope": "可读取实际模式、TUN、代理组与请求链路、分类后的内核错误，并测试 IPv4/IPv6 出口。不能修改配置、切换节点或执行命令。出口测试会访问 ipify。",
+    "unconfirmed": "暂时无法确认服务状态。",
+    "disabled": "诊断连接已关闭。",
+    "waiting": "服务已开启，尚未收到诊断调用；这不代表外部工具已经连接。",
+    "calls": "已收到 {{count}} 次诊断调用。",
+    "bindIp": "Kali / 本机监听 IP",
+    "peerIp": "允许访问的 Windows / 本机 IP",
+    "port": "诊断端口",
+    "networkHint": "默认只允许本机。连接 Windows 与 Kali 虚拟机时，请填写双方仅主机网络的 IP；不支持公网、通配地址或浏览器访问。HTTP 连接只用于可信的本机或隔离的仅主机网络。",
+    "enable": "开启诊断连接",
+    "disable": "关闭并撤销密钥",
+    "endpoint": "MCP 连接地址",
+    "token": "本次访问密钥",
+    "copyConfig": "复制 MCP 配置",
+    "copyToken": "复制访问密钥",
+    "setupHint": "在 Windows 本机将访问密钥配置为环境变量 CLASH_DIAGNOSTIC_TOKEN，再把 MCP 配置添加到 Codex。不要把密钥发到聊天。此连接不会自动添加到当前聊天。",
+    "expires": "自动关闭时间：{{time}}。退出应用或重启后需要重新开启。",
+    "lastTool": "最近诊断：{{name}}"
   }
 }

@@ -870,6 +870,28 @@ export interface TranslationResources {
           }
         }
       }
+      diagnosticMcp: {
+        bindIp: string
+        calls: string
+        copyConfig: string
+        copyToken: string
+        disable: string
+        disabled: string
+        enable: string
+        endpoint: string
+        expires: string
+        lastTool: string
+        networkHint: string
+        peerIp: string
+        port: string
+        privacy: string
+        scope: string
+        setupHint: string
+        title: string
+        token: string
+        unconfirmed: string
+        waiting: string
+      }
       feedback: {
         errors: {
           clash: {

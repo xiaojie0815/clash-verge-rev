@@ -1,8 +1,11 @@
 mod backup;
-mod clash;
 mod chain_diagnostics;
+mod clash;
 mod config;
 mod core_upgrade;
+mod diagnostic_mcp;
+mod diagnostic_probes;
+mod diagnostic_snapshot;
 mod dns;
 mod effects;
 mod executor;
@@ -15,10 +18,11 @@ mod window;
 
 // Re-export all functions from modules
 pub use backup::*;
-pub use clash::*;
 pub use chain_diagnostics::*;
+pub use clash::*;
 pub use config::*;
 pub use core_upgrade::*;
+pub use diagnostic_mcp::{get_diagnostic_mcp, start_diagnostic_mcp, stop_diagnostic_mcp};
 pub use dns::*;
 pub use icon::*;
 pub use listener::*;

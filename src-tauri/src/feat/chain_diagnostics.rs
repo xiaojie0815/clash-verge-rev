@@ -82,7 +82,7 @@ fn step(
     }
 }
 
-fn classify(message: &str) -> &'static str {
+pub(super) fn classify(message: &str) -> &'static str {
     let message = message.to_ascii_lowercase();
     if message.contains("authentication") || message.contains("auth failed") || message.contains("no acceptable") {
         "AUTHENTICATION_FAILED"
@@ -103,7 +103,19 @@ fn classify(message: &str) -> &'static str {
     }
 }
 
-fn io_code(error: std::io::Error) -> &'static str {
+pub(super) fn classify_error(error: &(dyn std::error::Error + 'static)) -> &'static str {
+    let mut current = Some(error);
+    while let Some(cause) = current {
+        let code = classify(&cause.to_string());
+        if code != "UNCLASSIFIED_CONNECTION_FAILURE" {
+            return code;
+        }
+        current = cause.source();
+    }
+    "UNCLASSIFIED_CONNECTION_FAILURE"
+}
+
+pub(super) fn io_code(error: std::io::Error) -> &'static str {
     match error.kind() {
         std::io::ErrorKind::UnexpectedEof | std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::BrokenPipe => {
             "PEER_CLOSED"
@@ -198,7 +210,7 @@ async fn direct_socks(proxy: &Value, hop: usize, limit: Duration) -> ChainDiagno
         let mut tls = connector
             .connect(name, stream)
             .await
-            .map_err(|error| classify(&error.to_string()))?;
+            .map_err(|error| classify_error(&error))?;
         stage = "DIRECT_TARGET_HTTP";
         tls.write_all(b"GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n")
             .await
@@ -512,11 +524,19 @@ pub async fn diagnose_chain(expected_egress: Option<String>) -> CmdResult<ChainD
         )
         .await;
         report.steps.push(match result {
-            Ok(Ok(_)) => step(
+            Ok(Ok(delay)) if delay.delay > 0 => step(
                 Some(index + 1),
                 "CHAIN_PREFIX_ACCESS",
                 "pass",
                 "CORE_HTTPS_PROBE_PASSED",
+                start,
+            ),
+            // The plugin maps some failed health checks to Ok(ProxyDelay { delay: 0 }).
+            Ok(Ok(_)) => step(
+                Some(index + 1),
+                "CHAIN_PREFIX_ACCESS",
+                "fail",
+                "CONNECTION_FAILED",
                 start,
             ),
             Ok(Err(error)) => step(
@@ -557,7 +577,7 @@ pub async fn diagnose_chain(expected_egress: Option<String>) -> CmdResult<ChainD
                 .get("https://example.com")
                 .send()
                 .await
-                .map_err(|error| classify(&error.to_string()))?;
+                .map_err(|error| classify_error(&error))?;
             report.observed_routes = observed_routes(&state.nodes).await;
             if !response.status().is_success() {
                 return Err("HTTP_TARGET_REJECTED");
@@ -569,7 +589,7 @@ pub async fn diagnose_chain(expected_egress: Option<String>) -> CmdResult<ChainD
                     .get("https://ifconfig.me/ip")
                     .send()
                     .await
-                    .map_err(|error| classify(&error.to_string()))?;
+                    .map_err(|error| classify_error(&error))?;
                 if !response.status().is_success() {
                     return Err("EGRESS_SERVICE_REJECTED");
                 }

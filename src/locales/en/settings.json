@@ -712,5 +712,27 @@
       "installing": "Installing Service...",
       "uninstalling": "Uninstalling Service..."
     }
+  },
+  "diagnosticMcp": {
+    "title": "Private diagnostics (MCP)",
+    "privacy": "Diagnostic output is allowlisted: node aliases and masked IPs only. Credentials, UUIDs, subscriptions, controller secrets and original logs are never returned.",
+    "scope": "Read live mode, TUN, groups, request chains and classified core errors, and test IPv4/IPv6 exits. Cannot change configuration, switch nodes or execute commands. Exit tests contact ipify.",
+    "unconfirmed": "Service state could not be confirmed.",
+    "disabled": "Diagnostic access is disabled.",
+    "waiting": "The service is running but no diagnostic call has arrived. An external connection has not been verified.",
+    "calls": "{{count}} diagnostic calls received.",
+    "bindIp": "Kali / local listening IP",
+    "peerIp": "Allowed Windows / local client IP",
+    "port": "Diagnostic port",
+    "networkHint": "Loopback only by default. For Windows and a Kali VM, use their isolated host-only network addresses. Public and wildcard addresses and browser requests are rejected. HTTP is for trusted loopback or isolated host-only networks only.",
+    "enable": "Enable diagnostics",
+    "disable": "Disable and revoke key",
+    "endpoint": "MCP endpoint",
+    "token": "Session access key",
+    "copyConfig": "Copy MCP configuration",
+    "copyToken": "Copy access key",
+    "setupHint": "Set CLASH_DIAGNOSTIC_TOKEN locally on Windows and add the MCP configuration to Codex. Do not send the key in chat. This does not automatically connect the current chat.",
+    "expires": "Automatically closes at {{time}}. Enable again after quitting or restarting the app.",
+    "lastTool": "Last diagnostic: {{name}}"
   }
 }

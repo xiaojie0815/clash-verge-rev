@@ -20,6 +20,7 @@ import { version } from '@root/package.json'
 
 import { BackupViewer } from './mods/backup-viewer'
 import { ConfigViewer } from './mods/config-viewer'
+import { DiagnosticMcpViewer } from './mods/diagnostic-mcp-viewer'
 import { HotkeyViewer } from './mods/hotkey-viewer'
 import { LayoutViewer } from './mods/layout-viewer'
 import { LiteModeViewer } from './mods/lite-mode-viewer'
@@ -43,6 +44,7 @@ const SettingVergeAdvanced = ({ onError: _ }: Props) => {
   const updateRef = useRef<DialogRef>(null)
   const backupRef = useRef<DialogRef>(null)
   const liteModeRef = useRef<DialogRef>(null)
+  const diagnosticMcpRef = useRef<DialogRef>(null)
 
   const onCheckUpdate = async () => {
     try {
@@ -88,6 +90,12 @@ const SettingVergeAdvanced = ({ onError: _ }: Props) => {
       <UpdateViewer ref={updateRef} />
       <BackupViewer ref={backupRef} />
       <LiteModeViewer ref={liteModeRef} />
+      <DiagnosticMcpViewer ref={diagnosticMcpRef} />
+
+      <SettingItem
+        onClick={() => diagnosticMcpRef.current?.open()}
+        label={t('settings.diagnosticMcp.title')}
+      />
 
       <SettingItem
         onClick={() => backupRef.current?.open()}

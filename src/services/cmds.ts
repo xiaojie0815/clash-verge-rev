@@ -126,6 +126,31 @@ export const setProxyChain = (group: string | null, nodes: string[] | null) =>
 export const diagnoseProxyChain = (expectedEgress: string | null) =>
   invoke<ChainDiagnosticReport>('diagnose_proxy_chain', { expectedEgress })
 
+export interface DiagnosticMcpConnection {
+  enabled: boolean
+  endpoint: string | null
+  token: string | null
+  expiresAt: string | null
+  lastTool: string | null
+  calls: number
+}
+
+export const getDiagnosticMcp = () =>
+  invoke<DiagnosticMcpConnection>('get_diagnostic_mcp')
+
+export const startDiagnosticMcp = (
+  bindIp: string,
+  allowedPeer: string,
+  port: number,
+) =>
+  invoke<DiagnosticMcpConnection>('start_diagnostic_mcp', {
+    bindIp,
+    allowedPeer,
+    port,
+  })
+
+export const stopDiagnosticMcp = () => invoke<void>('stop_diagnostic_mcp')
+
 export async function patchClashConfig(payload: Partial<IConfigData>) {
   return invoke<void>('patch_clash_config', { payload })
 }

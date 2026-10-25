@@ -149,6 +149,10 @@ jobs:
           tauriScript: pnpm
           args: --target ${{ matrix.target }} -b ${{ matrix.bundle }}
 
+      - name: Verify private diagnostic MCP
+        if: matrix.os == 'ubuntu-22.04' && github.event.inputs[matrix.input] == 'true'
+        run: cargo test -p clash-verge --lib --target ${{ matrix.target }} diagnostic_mcp -- --nocapture
+
       - name: Upload Artifacts (macOS)
         if: matrix.os == 'macos-latest' && github.event.inputs[matrix.input] == 'true'
         uses: actions/upload-artifact@v7

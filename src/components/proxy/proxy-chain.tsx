@@ -47,7 +47,6 @@ import {
   selectRuleChainMembers,
 } from '@/types/proxy-view'
 
-import { ProxyChainDiagnostics } from './proxy-chain-diagnostics'
 import {
   chainConfigurationApplied,
   chainDraftMatches,
@@ -658,15 +657,6 @@ export const ProxyChain = ({
             </Box>
           </DragDropProvider>
         )}
-        <ProxyChainDiagnostics
-          state={chainState}
-          draftKey={JSON.stringify([
-            targetGroup,
-            currentProxyChain.map((node) => node.name),
-          ])}
-          busy={isConnecting}
-          onBusy={setIsConnecting}
-        />
       </Box>
     </Paper>
   )
