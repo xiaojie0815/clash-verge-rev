@@ -36,6 +36,11 @@ export function DiagnosticMcpViewer({ ref }: { ref?: Ref<DialogRef> }) {
         if (!cancelled) {
           setInfo(value)
           setKnown(true)
+          if (value.enabled) {
+            setBindIp(value.bindIp ?? '127.0.0.1')
+            setPeer(value.allowedPeer ?? '127.0.0.1')
+            if (value.endpoint) setPort(new URL(value.endpoint).port)
+          }
         }
       } catch {
         if (!cancelled) setKnown(false)

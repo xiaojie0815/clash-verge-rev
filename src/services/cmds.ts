@@ -128,6 +128,8 @@ export const diagnoseProxyChain = (expectedEgress: string | null) =>
 
 export interface DiagnosticMcpConnection {
   enabled: boolean
+  bindIp: string | null
+  allowedPeer: string | null
   endpoint: string | null
   token: string | null
   expiresAt: string | null

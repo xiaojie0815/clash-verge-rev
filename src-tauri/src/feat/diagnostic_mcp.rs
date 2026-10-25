@@ -45,6 +45,8 @@ struct Gate {
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionInfo {
     enabled: bool,
+    bind_ip: Option<String>,
+    allowed_peer: Option<String>,
     endpoint: Option<String>,
     token: Option<String>,
     expires_at: Option<String>,
@@ -56,6 +58,8 @@ impl ConnectionInfo {
     fn disabled() -> Self {
         Self {
             enabled: false,
+            bind_ip: None,
+            allowed_peer: None,
             endpoint: None,
             token: None,
             expires_at: None,
@@ -112,6 +116,7 @@ pub async fn start_diagnostic_mcp(bind_ip: String, allowed_peer: String, port: u
     }
     if let Some(old) = state.take() {
         old.task.abort();
+        let _ = old.task.await;
     }
     let listener = tokio::net::TcpListener::bind(SocketAddr::new(ip, port))
         .await
@@ -131,6 +136,8 @@ pub async fn start_diagnostic_mcp(bind_ip: String, allowed_peer: String, port: u
     });
     let info = ConnectionInfo {
         enabled: true,
+        bind_ip: Some(ip.to_string()),
+        allowed_peer: Some(peer.to_string()),
         endpoint: Some(format!("http://{authority}/mcp")),
         token: Some(token),
         expires_at: Some((chrono::Utc::now() + chrono::Duration::hours(2)).to_rfc3339()),
@@ -167,6 +174,7 @@ pub async fn stop_diagnostic_mcp() -> CmdResult<()> {
             let _ = shutdown.send(());
         }
         server.task.abort();
+        let _ = server.task.await;
     }
     Ok(())
 }
